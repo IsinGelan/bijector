@@ -9,9 +9,6 @@ from pairing_bijections import (
     i_to_ii
     )
 
-
-
-
 class N0(BijStructure):
     size: ClassVar[int] = INFINITE_SIZE
     n: int
@@ -34,8 +31,6 @@ z_from_n0 = lambda n0: Z(z=(-1 if (neg := n0.n % 2) else 1) * (n0.n - neg) // 2)
 @derive(N0, to_aux=z_to_n0, from_aux=z_from_n0)
 class Z(BijStructure):
     z: int
-
-# IntAdapter = derive(int, Z, to_aux=lambda z: Z(z=z), from_aux=lambda z: z.z)
 
 @generate_bijection
 class IntPair(BijStructure):
@@ -64,6 +59,11 @@ class AlphabetString(BijStructure):
     """assumes the given alphabet and does not encode it."""
     alphabet: str
     string: str
+
+# @derive(N0)
+# class Q(BijStructure):
+#     a: int
+#     b: int
 
 tup = IntPair(a=1234567, b=9876)
 print(z:=tup.encode())

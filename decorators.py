@@ -196,12 +196,12 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijStructure]:
         fin_attr_codes = f_to_flist(fin_code, length=finnum, maxes=fin_maxes)
         inf_attr_codes = i_to_ilist(inf_code, length=infnum)
         fin_self_attrs = {
-            attr_name: attr_cls.decode(f_code)
-            for (attr_name, attr_cls), f_code
+            attr_name: attr_type.decode(f_code)
+            for (attr_name, attr_type), f_code
             in zip(fin_attrs, fin_attr_codes)}
         inf_self_attrs = {
-            attr_name: attr_cls.decode(i_code)
-            for (attr_name, attr_cls), i_code
+            attr_name: attr_type.decode(i_code)
+            for (attr_name, attr_type), i_code
             in zip(inf_attrs, inf_attr_codes)}
         return cls(**fin_self_attrs, **inf_self_attrs)
 
@@ -212,8 +212,7 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijStructure]:
         inf_attr_codes = [
             attr_type.encode(self.__getattribute__(attr_name))
             for attr_name, attr_type in inf_attrs]
-        
-        # print(*(attr_type.encode(self.__getattribute__(attr_name)) for attr_name, attr_type in inf_attrs))
+    
         
         fin_code = flist_to_f(fin_attr_codes, maxes=fin_maxes)
         inf_code = ilist_to_i(inf_attr_codes)
@@ -239,10 +238,6 @@ def generate_bijection(
 
     return wrapper(cls)
 
-# def class_has_method(cls, method_name: str, method_type: type = None) -> bool:
-#     """method_type can be staticmethod or classmethod"""
-#     method = cls.__dict__.get(method_name, None)
-#     return callable(method) if method_type is None else isinstance(method, method_type)
 
 # ================================
 class N0(BijStructure):
