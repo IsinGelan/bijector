@@ -32,3 +32,10 @@ def nacs(bin_f: Callable[[Any, Any], Any], it: Iterable, *, x0: Any) -> Iterator
         y = bin_f(prev_x, x)
         prev_x = x
         yield y
+
+def classcopy[T](supcls: T, name: str = None, inherit_classvars: bool = True, **classvars) -> type[T]:
+    """Hacky workaround to create a new class
+    inheriting from the specified parent"""
+    newname = supcls.__name__ if name is None else name
+    sup_classvars = supcls.__dict__ if inherit_classvars else {}
+    return type(newname, (supcls,), sup_classvars | classvars)
