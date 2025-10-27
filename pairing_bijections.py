@@ -3,9 +3,6 @@ from itertools import chain
 from math import prod, sqrt, comb as binomial
 from typing import Iterable, Iterator
 
-from pydantic import BaseModel
-
-from bijection import Bijection, BijConfig
 from helpers import first_where, nacs, rev_enumerate, scan
 
 # == Endliche Paarungsfunktionen ==
@@ -179,5 +176,3 @@ def test_cantor(zmax = 10000000, length = 3):
             continue
         raise ValueError("The cantor ranking function does not agree with its inverse\n"
                          f"at z = {z}  f^-1(f(z)) = {znew}")
-
-

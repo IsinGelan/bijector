@@ -1,11 +1,10 @@
 
-from copy import copy, deepcopy
-from dataclasses import dataclass
 from math import prod
 from typing import Callable, ClassVar, Self
 
 from pydantic import BaseModel
 
+from bij_types import BijAdapter, BijType, INFINITE_SIZE
 from helpers import classcopy
 from pairing_bijections import (
     f_to_flist,
@@ -17,50 +16,19 @@ from pairing_bijections import (
     )
 # from structures import Z
 
-INFINITE_SIZE = -1
-
-class BijStructure(BaseModel):
-    size: ClassVar[int] = ...
-
-    def model_post_init(self, context):
-        if self.__class__.size == ...:
-            raise AttributeError(
-                "Classes that directly inherit from BijStructure "
-                f"(like {self.__class__.__name__!r}) "
-                "must define class attribute 'size: int'")
-        
-        self.validate()
-
-        return super().model_post_init(context)
-
-    @classmethod
-    def decode(cls, code: int) -> Self:
-        ...
-    
-    def encode(self) -> int:
-        ...
-    
-    def validate(self) -> bool:
-        ...
-
-class BijAdapter(BijStructure):
-    """Class for adapters that make primitive data types encodable"""
-    __cls: ClassVar[type]
-    __aux_cls: ClassVar[type]
-
 
 # ================================
-PRIMITIVE_ADAPTERS: dict[type, type[BijStructure]] = {}
+PRIMITIVE_ADAPTERS: dict[type, type[BijType]] = {}
 
 def is_bijectable(cls: type) -> bool:
     return (
-        issubclass(cls, BijStructure) and cls.size != ...
+        issubclass(cls, BijType) and cls.size != ...
         or cls in PRIMITIVE_ADAPTERS)
 
-def bijectable(cls: type) -> type[BijStructure]:
+def bijectable(cls: type) -> type[BijType]:
     """returns the bijectable version of that class.
     If class is not subclass of BijStructure, but an adapter for the class exists, it is returned (e.g. for int)"""
-    if issubclass(cls, BijStructure):
+    if issubclass(cls, BijType):
         return cls
     if cls in PRIMITIVE_ADAPTERS:
         return PRIMITIVE_ADAPTERS[cls]
@@ -90,7 +58,7 @@ def _process_derive[CT, AuxT](
         to_aux: Callable[[CT], AuxT],
         from_aux: Callable[[AuxT], CT],
         as_decorator: bool
-        ) -> type[BijStructure]:
+        ) -> type[BijType]:
     
     assert is_bijectable(aux_cls)
     assert not as_decorator or issubclass(cls, BaseModel)
@@ -124,7 +92,7 @@ def derive[CT, AuxT](
         cls2 = None, /, *,
         to_aux: Callable[[CT], AuxT],
         from_aux: Callable[[AuxT], CT]
-        ) -> type[BijStructure]:
+        ) -> type[BijType]:
     """To derive a class from an auxiliary type"""
 
     aux_cls = cls1 if cls2 is None else cls2
@@ -140,7 +108,7 @@ def derive[CT, AuxT](
 
 
 def is_valid_class(cls: type) -> bool:
-    if not issubclass(cls, BijStructure):
+    if not issubclass(cls, BijType):
         return False
     if cls.size == ...:
         # class not correctly initialized
@@ -150,7 +118,7 @@ def is_valid_class(cls: type) -> bool:
 def assert_valid_class(cls: type, attr_name: str, for_cls: type):
     if cls in PRIMITIVE_ADAPTERS:
         return
-    if not issubclass(cls, BijStructure):
+    if not issubclass(cls, BijType):
         raise TypeError(
             f"Can only generate a bijection for class {for_cls.__name__!r} "
             "if all attributes inherit from BijStructure or have an adapter!\n"
@@ -162,7 +130,7 @@ def assert_valid_class(cls: type, attr_name: str, for_cls: type):
             f"Class {cls.__name__!r} does not!"
         )
 
-def replace_adapter_types(cls: type[BijStructure], attr_names: list[str]):
+def replace_adapter_types(cls: type[BijType], attr_names: list[str]):
     """Inplace"""
     for attr_name in attr_names:
         attr_type = cls.model_fields[attr_name].annotation
@@ -170,8 +138,8 @@ def replace_adapter_types(cls: type[BijStructure], attr_names: list[str]):
             cls.model_fields[attr_name].annotation = PRIMITIVE_ADAPTERS[attr_type]
 
 
-def _process_add_bijection(cls, exclude: list[str]) -> type[BijStructure]:
-    assert issubclass(cls, BijStructure)
+def _process_add_bijection(cls, exclude: list[str]) -> type[BijType]:
+    assert issubclass(cls, BijType)
 
     newcls = cls
 
@@ -185,7 +153,7 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijStructure]:
     replace_adapter_types(newcls, include_attr_names)
 
     # Must come after the primitives were replaced by adapters!
-    include_attr_types: list[type[BijStructure]] = [
+    include_attr_types: list[type[BijType]] = [
         newcls.model_fields[attr_name].annotation
         for attr_name in include_attr_names
     ]
@@ -233,7 +201,7 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijStructure]:
             in zip(inf_attrs, inf_attr_codes)}
         return cls(**fin_self_attrs, **inf_self_attrs)
 
-    def encode(self: BijStructure) -> int:
+    def encode(self: BijType) -> int:
         fin_attr_codes = [
             attr_type.encode(self.__getattribute__(attr_name)) # current workaround for adapters
             for attr_name, attr_type in fin_attrs]
@@ -252,9 +220,9 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijStructure]:
     return cls
 
 def generate_bijection(
-        cls: type[BijStructure] = None, /, *,
+        cls: type[BijType] = None, /, *,
         exclude: list[str] = []
-        ) -> type[BijStructure]:
+        ) -> type[BijType]:
     
     def wrapper(cls):
         return _process_add_bijection(cls, exclude=exclude)
@@ -268,7 +236,7 @@ def generate_bijection(
 
 
 # ================================
-class N0(BijStructure):
+class N0(BijType):
     size: ClassVar[int] = INFINITE_SIZE
     n: int
     @classmethod
@@ -281,7 +249,7 @@ z_to_n0 = lambda z: N0(n=2*abs(z.z) + (z.z < 0))
 z_from_n0 = lambda n0: Z(z=(-1 if (neg := n0.n % 2) else 1) * (n0.n - neg) // 2)
 
 @derive(N0, to_aux=z_to_n0, from_aux=z_from_n0)
-class Z(BijStructure):
+class Z(BijType):
     z: int
 
 PRIMITIVE_ADAPTERS = {

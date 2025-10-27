@@ -1,9 +1,8 @@
 
 from math import gcd
-from time import sleep
 from typing import ClassVar, Iterator
 
-from decorators import INFINITE_SIZE, BijStructure
+from decorators import INFINITE_SIZE, BijType
 from pairing_bijections import fi_to_i, i_to_fi
 
 Q = tuple[int, int]
@@ -49,7 +48,7 @@ def num_to_q(z: int) -> Q:
         current = child(*current, int(bit))
     return current
 
-class Q(BijStructure):
+class Q(BijType):
     size: ClassVar[int] = INFINITE_SIZE
     a: int
     b: int
