@@ -1,10 +1,11 @@
 
 from math import prod
 from typing import Callable, ClassVar, Self
+import inspect
 
 from pydantic import BaseModel
 
-from bij_types import BijAdapter, BijType, INFINITE_SIZE
+from bij_type import BijAdapter, BijType, INFINITE_SIZE
 from helpers import classcopy
 from pairing_bijections import (
     f_to_flist,
@@ -19,16 +20,33 @@ from pairing_bijections import (
 
 # ================================
 PRIMITIVE_ADAPTERS: dict[type, type[BijType]] = {}
+SUPPORTED_BASE_CLASSES = {BijType}
 
-def is_bijectable(cls: type) -> bool:
+def is_bijectable_type(cls: type) -> bool:
+    """whether the type itself is bijectable"""
+    if issubclass(cls, BijType):
+        return cls.size != ...
+    
+    attrs = dir(cls)
+    if "encode" not in attrs or not inspect.ismethod(getattr(cls, "encode")):
+        return False
+    if "decode" not in attrs or not inspect.ismethod(getattr(cls, "decode")):
+        return False
+    if "size" not in attrs:
+        return False
+    return True
+
+def has_bijectable_version(cls: type) -> bool:
+    """whether the type can be converted to a bijectable version"""
     return (
-        issubclass(cls, BijType) and cls.size != ...
-        or cls in PRIMITIVE_ADAPTERS)
+        is_bijectable_type(cls)
+        or cls in PRIMITIVE_ADAPTERS
+        )
 
-def bijectable(cls: type) -> type[BijType]:
+def bijectable_version(cls: type) -> type[BijType]:
     """returns the bijectable version of that class.
     If class is not subclass of BijStructure, but an adapter for the class exists, it is returned (e.g. for int)"""
-    if issubclass(cls, BijType):
+    if is_bijectable_type(cls):
         return cls
     if cls in PRIMITIVE_ADAPTERS:
         return PRIMITIVE_ADAPTERS[cls]
@@ -60,10 +78,10 @@ def _process_derive[CT, AuxT](
         as_decorator: bool
         ) -> type[BijType]:
     
-    assert is_bijectable(aux_cls)
-    assert not as_decorator or issubclass(cls, BaseModel)
+    assert has_bijectable_version(aux_cls)
+    assert not as_decorator or issubclass(cls, BaseModel) # TODO: extend to other bijectable types
 
-    bij_aux_cls = bijectable(aux_cls)
+    bij_aux_cls = bijectable_version(aux_cls)
     
     def decode(code: int) -> Self:
         aux_obj = bij_aux_cls.decode(code)
@@ -107,25 +125,17 @@ def derive[CT, AuxT](
 
 
 
-def is_valid_class(cls: type) -> bool:
-    if not issubclass(cls, BijType):
-        return False
-    if cls.size == ...:
-        # class not correctly initialized
-        return False
-    return True
-
 def assert_valid_class(cls: type, attr_name: str, for_cls: type):
     if cls in PRIMITIVE_ADAPTERS:
         return
-    if not issubclass(cls, BijType):
+    if not is_bijectable_type(cls):
         raise TypeError(
             f"Can only generate a bijection for class {for_cls.__name__!r} "
-            "if all attributes inherit from BijStructure or have an adapter!\n"
+            "if all attributes are bijectable or have an adapter!\n"
             f"Attribute '{attr_name}: {cls.__name__}' does not!")
     if cls.size == ...:
         raise AttributeError(
-            "Classes directly inheriting from BijStructure (not derived or with generated bijection) "
+            "Classes directly inheriting from BijType (not derived or with generated bijection) "
             "must define class attribute 'size: int'.\n"
             f"Class {cls.__name__!r} does not!"
         )
@@ -138,10 +148,8 @@ def replace_adapter_types(cls: type[BijType], attr_names: list[str]):
             cls.model_fields[attr_name].annotation = PRIMITIVE_ADAPTERS[attr_type]
 
 
-def _process_add_bijection(cls, exclude: list[str]) -> type[BijType]:
-    assert issubclass(cls, BijType)
-
-    newcls = cls
+def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
+    assert issubclass(cls, BaseModel)
 
     include_attr_names = [
         attr_name
@@ -150,16 +158,16 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijType]:
         if attr_name not in exclude
         ]
     
-    replace_adapter_types(newcls, include_attr_names)
+    replace_adapter_types(cls, include_attr_names)
 
     # Must come after the primitives were replaced by adapters!
     include_attr_types: list[type[BijType]] = [
-        newcls.model_fields[attr_name].annotation
+        cls.model_fields[attr_name].annotation
         for attr_name in include_attr_names
     ]
     
     for attr_name in include_attr_names:
-        attr_type = newcls.model_fields[attr_name].annotation
+        attr_type = cls.model_fields[attr_name].annotation
         assert_valid_class(attr_type, attr_name, cls)
 
     # assert len(include_attrs) # NEEDED?
@@ -184,7 +192,7 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijType]:
     finnum = len(fin_attrs)
     infnum = len(inf_attrs)
 
-    newcls.size = INFINITE_SIZE if inf_attrs else finmax
+    cls.size = INFINITE_SIZE if inf_attrs else finmax
 
     def decode(cls, code: int):
         """does not allow for excluded attributes yet!"""
@@ -214,10 +222,21 @@ def _process_add_bijection(cls, exclude: list[str]) -> type[BijType]:
         inf_code = ilist_to_i(inf_attr_codes)
         return fi_to_i(fin_code, inf_code, m=finmax)
 
-    newcls.decode = classmethod(decode)
-    newcls.encode = encode
+    cls.decode = classmethod(decode)
+    cls.encode = encode
     
     return cls
+
+def _process_gb(cls: type, exclude: list[str] = []):
+    """processes the class; if class type not supported, raise Exception"""
+    # if issubclass(cls, Enum):
+    #     return _process_gb_enum(cls)
+    if issubclass(cls, BaseModel):
+        return _process_gb_pydantic(cls, exclude=exclude)
+    raise TypeError(
+        f"@generate_bijection does not support class {cls.__name__!r}!\n"
+        f"Only classes inheriting from any of {SUPPORTED_BASE_CLASSES!r} are supported."
+        )
 
 def generate_bijection(
         cls: type[BijType] = None, /, *,
@@ -225,7 +244,7 @@ def generate_bijection(
         ) -> type[BijType]:
     
     def wrapper(cls):
-        return _process_add_bijection(cls, exclude=exclude)
+        return _process_gb(cls)
 
     # Determining if called with () or without
     if cls is None:

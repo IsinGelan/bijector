@@ -19,8 +19,7 @@ def flist_to_f(xs: list[int], *, maxes: list[int]) -> int:
     assert len(xs) == len(maxes)
     assert all((x < maxx) for x, maxx in zip(xs, maxes))
 
-    maxes_proded = scan(lambda a,b: a*b, maxes, acc=1)
-    multipliers = chain([1], maxes_proded)
+    multipliers = scan(lambda a,b: a*b, maxes, acc=1, yield_start=True)
     return sum(x * mult for x, mult in zip(xs, multipliers))
 
 def f_to_flist(z: int, *, length: int, maxes: Iterable[int]) -> Iterator[int]:

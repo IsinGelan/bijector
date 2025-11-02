@@ -13,11 +13,19 @@ def first_where(cond: Callable[[Any], bool], it: Iterable) -> Any | None:
             return el
     return None
 
-def scan(bin_f: Callable[[Any, Any], Any], it: Iterable, *, acc: Any) -> Iterator:
+def first_index_where(cond: Callable[[Any], bool], it: Iterable) -> int | None:
+    for el in it:
+        if cond(el):
+            return el
+    return None
+
+def scan(bin_f: Callable[[Any, Any], Any], it: Iterable, *, acc: Any, yield_start: bool = False) -> Iterator:
     """applies the binary function bin_f on an element and the previous result.<br>
     It accumulates the list stepwise.\n
     y = acc = bin_f(acc, x)\n
     Can for example be used to calculate the running sum"""
+    if yield_start:
+        yield acc
     for el in it:
         acc = bin_f(acc, el)
         yield acc
