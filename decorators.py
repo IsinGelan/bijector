@@ -19,7 +19,7 @@ from pairing_bijections import (
 
 # ================================
 PRIMITIVE_ADAPTERS: dict[type, type[BijType]] = {}
-SUPPORTED_BASE_CLASSES = {BijType}
+SUPPORTED_BASE_CLASSES = {BijType, Enum}
 
 def is_bijectable_type(cls: type) -> bool:
     """whether the type itself is bijectable"""
@@ -273,6 +273,7 @@ def generate_bijection(
         cls: type[BijType] = None, /, *,
         exclude: list[str] = []
         ) -> type[BijType]:
+    """Atomatically adds methods encode and decode to the class to make it bijectable."""
     
     def wrapper(cls):
         return _process_gb(cls)
@@ -285,7 +286,9 @@ def generate_bijection(
     return wrapper(cls)
 
 
+
 # ================================
+# Configuring the adapters
 class N0(BijType):
     size: ClassVar[int] = INFINITE_SIZE
     n: int
@@ -302,6 +305,15 @@ z_from_n0 = lambda n0: Z(z=(-1 if (neg := n0.n % 2) else 1) * (n0.n - neg) // 2)
 class Z(BijType):
     z: int
 
+class Boolean(Enum):
+    FALSE = 0
+    TRUE  = 1
+
+b_to_bij = lambda b: Boolean.TRUE if b else Boolean.FALSE
+bij_to_b = lambda bij: bij == Boolean.TRUE
+
+
 PRIMITIVE_ADAPTERS = {
-    int: derive(int, Z, to_aux=lambda i: Z(z=i), from_aux=lambda z: z.z)
+    int: derive(int, Z, to_aux=lambda i: Z(z=i), from_aux=lambda z: z.z),
+    bool: derive(bool, Boolean, to_aux=b_to_bij, from_aux=bij_to_b)
 }
