@@ -1,6 +1,6 @@
 
 from typing import ClassVar
-from bij_types import INFINITE_SIZE, BijType
+from bij_type import INFINITE_SIZE, BijType
 from decorators import derive, generate_bijection
 from pairing_bijections import i_to_ii, i_to_ilist, ii_to_i, ilist_to_i
 

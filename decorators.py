@@ -1,4 +1,5 @@
 
+from enum import Enum
 from math import prod
 from typing import Callable, ClassVar, Self
 import inspect
@@ -15,8 +16,6 @@ from pairing_bijections import (
     ilist_to_i,
     i_to_ilist
     )
-# from structures import Z
-
 
 # ================================
 PRIMITIVE_ADAPTERS: dict[type, type[BijType]] = {}
@@ -52,6 +51,7 @@ def bijectable_version(cls: type) -> type[BijType]:
         return PRIMITIVE_ADAPTERS[cls]
     raise TypeError(f"Class {cls.__name__!r} is not bijectable and does not define an adapter!")
 
+# --------------------------------
 def assert_aux_obj_type(aux_obj, aux_cls):
     if isinstance(aux_obj, aux_cls):
         return
@@ -67,6 +67,36 @@ def assert_aux_obj_type(aux_obj, aux_cls):
         f"to_aux(...) returned `{repr(aux_obj)}` of class"
         f" {obj_cls_repr}, not {aux_cls_repr} (the derived class)!")
 
+def assert_in_cls_range(cls, code: int):
+    if cls.size == INFINITE_SIZE:
+        return
+    if cls.size == ...:
+        raise AttributeError(
+            "Classes directly inheriting from BijType (not derived or with generated bijection) "
+            "must define class attribute 'size: int'.\n"
+            f"Class {cls.__name__!r} does not!"
+        )
+    if code < cls.size:
+        return
+    raise IndexError(f"Code {code} beyond finite size of {cls.size} "
+                     f"for class {cls.__name__!r}!")
+
+def assert_bijectable_class(cls: type, attr_name: str, for_cls: type):
+    if cls in PRIMITIVE_ADAPTERS:
+        return
+    if not is_bijectable_type(cls):
+        raise TypeError(
+            f"Can only generate a bijection for class {for_cls.__name__!r} "
+            "if all attributes are bijectable or have an adapter!\n"
+            f"Attribute '{attr_name}: {cls.__name__}' does not!")
+    if cls.size == ...:
+        raise AttributeError(
+            "Classes directly inheriting from BijType (not derived or with generated bijection) "
+            "must define class attribute 'size: int'.\n"
+            f"Class {cls.__name__!r} does not!"
+        )
+
+# --------------------------------
 def new_adapter(cls, aux_cls) -> type[BijAdapter]:
     return classcopy(BijAdapter, f"Adapter{cls.__name__}{aux_cls.__name__}")
 
@@ -84,6 +114,7 @@ def _process_derive[CT, AuxT](
     bij_aux_cls = bijectable_version(aux_cls)
     
     def decode(code: int) -> Self:
+        assert_in_cls_range(newcls, code)
         aux_obj = bij_aux_cls.decode(code)
         return from_aux(aux_obj)
     
@@ -125,20 +156,23 @@ def derive[CT, AuxT](
 
 
 
-def assert_valid_class(cls: type, attr_name: str, for_cls: type):
-    if cls in PRIMITIVE_ADAPTERS:
-        return
-    if not is_bijectable_type(cls):
-        raise TypeError(
-            f"Can only generate a bijection for class {for_cls.__name__!r} "
-            "if all attributes are bijectable or have an adapter!\n"
-            f"Attribute '{attr_name}: {cls.__name__}' does not!")
-    if cls.size == ...:
-        raise AttributeError(
-            "Classes directly inheriting from BijType (not derived or with generated bijection) "
-            "must define class attribute 'size: int'.\n"
-            f"Class {cls.__name__!r} does not!"
-        )
+def _process_gb_enum(cls: type[Enum]) -> type:
+    values = list(cls)
+    values_to_index = {v: i for i, v in enumerate(values)}
+    value_num = len(values)
+
+    def decode(cls, code: int) -> Self:
+        assert_in_cls_range(cls, code)
+        return values[code]
+
+    def encode(self) -> int:
+        return values_to_index[self]
+
+    cls.size = value_num
+    cls.decode = classmethod(decode)
+    cls.encode = encode
+
+    return cls
 
 def replace_adapter_types(cls: type[BijType], attr_names: list[str]):
     """Inplace"""
@@ -146,7 +180,6 @@ def replace_adapter_types(cls: type[BijType], attr_names: list[str]):
         attr_type = cls.model_fields[attr_name].annotation
         if attr_type in PRIMITIVE_ADAPTERS:
             cls.model_fields[attr_name].annotation = PRIMITIVE_ADAPTERS[attr_type]
-
 
 def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
     assert issubclass(cls, BaseModel)
@@ -168,9 +201,7 @@ def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
     
     for attr_name in include_attr_names:
         attr_type = cls.model_fields[attr_name].annotation
-        assert_valid_class(attr_type, attr_name, cls)
-
-    # assert len(include_attrs) # NEEDED?
+        assert_bijectable_class(attr_type, attr_name, cls)
 
     fin_attrs = [
         (name, attr_type)
@@ -191,11 +222,10 @@ def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
     finmax = prod(attr_type.size for _, attr_type in fin_attrs)
     finnum = len(fin_attrs)
     infnum = len(inf_attrs)
-
-    cls.size = INFINITE_SIZE if inf_attrs else finmax
-
+ 
     def decode(cls, code: int):
         """does not allow for excluded attributes yet!"""
+        assert_in_cls_range(cls, code)
         fin_code, inf_code = i_to_fi(code, m=finmax)
         fin_attr_codes = f_to_flist(fin_code, length=finnum, maxes=fin_maxes)
         inf_attr_codes = i_to_ilist(inf_code, length=infnum)
@@ -222,6 +252,7 @@ def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
         inf_code = ilist_to_i(inf_attr_codes)
         return fi_to_i(fin_code, inf_code, m=finmax)
 
+    cls.size = INFINITE_SIZE if inf_attrs else finmax
     cls.decode = classmethod(decode)
     cls.encode = encode
     
@@ -229,8 +260,8 @@ def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
 
 def _process_gb(cls: type, exclude: list[str] = []):
     """processes the class; if class type not supported, raise Exception"""
-    # if issubclass(cls, Enum):
-    #     return _process_gb_enum(cls)
+    if issubclass(cls, Enum):
+        return _process_gb_enum(cls)
     if issubclass(cls, BaseModel):
         return _process_gb_pydantic(cls, exclude=exclude)
     raise TypeError(
