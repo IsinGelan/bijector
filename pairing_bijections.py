@@ -27,7 +27,7 @@ def f_to_flist(z: int, *, length: int, maxes: Iterable[int]) -> Iterator[int]:
     If the input overflows the last index maximum, an error will be raised\n
     It is thus suggested to use an infinite Iterator for maxes"""
     for m, _ in zip(maxes, range(length)):
-        res, z = divmod(z, m)
+        z, res = divmod(z, m)
         yield res
 
 

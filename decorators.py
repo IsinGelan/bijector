@@ -26,10 +26,10 @@ def is_bijectable_type(cls: type) -> bool:
     if issubclass(cls, BijType):
         return cls.size != ...
     
-    attrs = dir(cls)
-    if "encode" not in attrs or not inspect.ismethod(getattr(cls, "encode")):
+    attrs = cls.__dict__
+    if "encode" not in attrs or not callable(getattr(cls, "encode")):
         return False
-    if "decode" not in attrs or not inspect.ismethod(getattr(cls, "decode")):
+    if "decode" not in attrs or not callable(getattr(cls, "decode")):
         return False
     if "size" not in attrs:
         return False
@@ -81,14 +81,20 @@ def assert_in_cls_range(cls, code: int):
     raise IndexError(f"Code {code} beyond finite size of {cls.size} "
                      f"for class {cls.__name__!r}!")
 
-def assert_bijectable_class(cls: type, attr_name: str, for_cls: type):
+def assert_bijectable_class(cls: type, *, for_cls: type, attr_name: str = "", from_derive = False):
     if cls in PRIMITIVE_ADAPTERS:
         return
     if not is_bijectable_type(cls):
-        raise TypeError(
-            f"Can only generate a bijection for class {for_cls.__name__!r} "
-            "if all attributes are bijectable or have an adapter!\n"
-            f"Attribute '{attr_name}: {cls.__name__}' does not!")
+        if from_derive:
+            raise TypeError(
+                f"Can only derive class {for_cls.__name__!r} "
+                "from an auxiliary class that is bijectable!\n"
+                f"aux class '{cls.__name__}' is not!")
+        else:
+            raise TypeError(
+                f"Can only generate a bijection for class {for_cls.__name__!r} "
+                "if all attributes are bijectable or have an adapter!\n"
+                f"Attribute '{attr_name}: {cls.__name__}' does not!")
     if cls.size == ...:
         raise AttributeError(
             "Classes directly inheriting from BijType (not derived or with generated bijection) "
@@ -98,7 +104,7 @@ def assert_bijectable_class(cls: type, attr_name: str, for_cls: type):
 
 # --------------------------------
 def new_adapter(cls, aux_cls) -> type[BijAdapter]:
-    return classcopy(BijAdapter, f"Adapter{cls.__name__}{aux_cls.__name__}")
+    return classcopy(BijAdapter, f"Adapter_{cls.__name__}_{aux_cls.__name__}")
 
 def _process_derive[CT, AuxT](
         cls: CT,
@@ -108,7 +114,7 @@ def _process_derive[CT, AuxT](
         as_decorator: bool
         ) -> type[BijType]:
     
-    assert has_bijectable_version(aux_cls)
+    assert_bijectable_class(aux_cls, for_cls=cls, from_derive=True)
     assert not as_decorator or issubclass(cls, BaseModel) # TODO: extend to other bijectable types
 
     bij_aux_cls = bijectable_version(aux_cls)
@@ -201,7 +207,7 @@ def _process_gb_pydantic(cls, exclude: list[str]) -> type[BijType]:
     
     for attr_name in include_attr_names:
         attr_type = cls.model_fields[attr_name].annotation
-        assert_bijectable_class(attr_type, attr_name, cls)
+        assert_bijectable_class(attr_type, for_cls=cls, attr_name=attr_name)
 
     fin_attrs = [
         (name, attr_type)
@@ -305,6 +311,7 @@ z_from_n0 = lambda n0: Z(z=(-1 if (neg := n0.n % 2) else 1) * (n0.n - neg) // 2)
 class Z(BijType):
     z: int
 
+@generate_bijection
 class Boolean(Enum):
     FALSE = 0
     TRUE  = 1

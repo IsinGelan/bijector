@@ -1,6 +1,6 @@
 
 from math import gcd
-from typing import ClassVar, Iterator
+from typing import ClassVar, Iterator, Self
 
 from decorators import INFINITE_SIZE, BijType
 from pairing_bijections import fi_to_i, i_to_fi
@@ -53,6 +53,10 @@ class Q(BijType):
     a: int
     b: int
 
+    def model_post_init(self, context):
+        self.validate()
+        return super().model_post_init(context)
+
     def validate(self):
         if gcd(self.a, self.b) != 1:
             raise ValueError(
@@ -64,7 +68,13 @@ class Q(BijType):
                 f"Got {self.a}/{self.b}")
         
         self.b = 1 if self.a == 0 else self.b
+
+    @classmethod
+    def from_int(cls, num: int) -> Self:
+        return Q(a=num, b=1)
     
+    def __int__(self) -> int:
+        return self.a // self.b
     def __float__(self) -> float:
         return self.a / self.b
     
