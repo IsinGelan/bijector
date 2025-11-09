@@ -58,13 +58,13 @@ class Q(BijType):
         return super().model_post_init(context)
 
     def validate(self):
-        if gcd(self.a, self.b) != 1:
-            raise ValueError(
-                "Q requires irreducible fraction as input!\n"
-                f"Got {self.a}/{self.b}")
         if self.b == 0:
             raise ZeroDivisionError(
                 "fraction can't be a division by zero!\n"
+                f"Got {self.a}/{self.b}")
+        if gcd(self.a, self.b) != 1:
+            raise ValueError(
+                "Q requires irreducible fraction as input!\n"
                 f"Got {self.a}/{self.b}")
         
         self.b = 1 if self.a == 0 else self.b
@@ -113,3 +113,48 @@ class Q(BijType):
         a, b = num_to_q(num)
         a, b = (b, a) if hi_div_lo else (a, b)
         return cls(a=(-1 if neg else 1) * a, b=b)
+    
+    @staticmethod
+    def reduced_tuple(a: int, b: int) -> tuple[int, int]:
+        g = gcd(a, b)
+        return (a//g, b//g)
+    
+    @classmethod
+    def reduced(cls, a: int, b: int) -> Self:
+        g = gcd(a, b)
+        return cls(a=a//g, b=b//g)
+
+    def __neg__(self) -> Self:
+        return Q(-self.a, self.b)
+
+    def __add__(self, other: Self) -> Self:
+        divisor = self.b * other.b
+        return Q.reduced(self.a * other.b + other.a * self.b, divisor)
+        
+    def __sub__(self, other: Self) -> Self:
+        return self + (- other)
+    
+    def __mul__(self, other: Self) -> Self:
+        return Q.reduced(self.a * other.a, self.b * other.b)
+
+    def __div__(self, other: Self) -> Self:
+        return Q.reduced(self.a * other.b, self.b * other.a)
+    
+    def __mod__(self, other: Self | int) -> Self:
+        o = Q(a=other, b=1) if isinstance(other, int) else other
+        divisor = self.b * o.b
+        rest = (self.a * o.b) % (o.a * self.b)
+        return Q.reduced(rest, divisor)
+    
+    def __divmod__(self, other: Self | int) -> tuple[Self, Self]:
+        o = Q(a=other, b=1) if isinstance(other, int) else other
+        divisor = self.b * o.b
+        num, rest = divmod(self.a * o.b, o.a * self.b)
+        return Q.from_int(num), Q.reduced(rest, divisor)
+
+    def __eq__(self, value):
+        if isinstance(value, Q):
+            return self.a == value.a and self.b == value.b
+        if isinstance(value, int):
+            return self.b == 1 and value == self.a
+        return super().__eq__(self, value)
