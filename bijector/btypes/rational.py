@@ -5,7 +5,9 @@ from typing import ClassVar, Iterator, Self
 from bijector.decorators import INFINITE_SIZE, BijType
 from bijector.pairing_bijections import fi_to_i, i_to_fi
 
+
 Q = tuple[int, int]
+
 
 def children(a: int, b: int) -> tuple[Q, Q]:
     assert gcd(a, b) == 1

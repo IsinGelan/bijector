@@ -5,9 +5,9 @@ from typing import Callable, ClassVar, Self
 
 from pydantic import BaseModel
 
-from bij_type import BijAdapter, BijType, INFINITE_SIZE
-from helpers import classcopy
-from pairing_bijections import (
+from bijector.bij_type import BijAdapter, BijType, INFINITE_SIZE
+from bijector.helpers import classcopy
+from bijector.pairing_bijections import (
     f_to_flist,
     fi_to_i,
     i_to_fi,

@@ -2,10 +2,10 @@
 from typing import Any, ClassVar
 from hashlib import sha256 as static_hash
 
-from bij_type import INFINITE_SIZE, BijType
-from decorators import assert_in_cls_range, bijectable_version
-from helpers import classcopy, first_index_where, scan
-from pairing_bijections import fi_to_i, i_to_fi  
+from bijector.bij_type import INFINITE_SIZE, BijType
+from bijector.decorators import assert_in_cls_range, bijectable_version
+from bijector.helpers import classcopy, first_index_where, scan
+from bijector.pairing_bijections import fi_to_i, i_to_fi  
 
 # @generate_bijection(exclude=["alphabet"])
 class AlphabetString(BijType):

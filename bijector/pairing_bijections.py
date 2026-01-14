@@ -3,7 +3,7 @@ from itertools import chain
 from math import prod, sqrt, comb as binomial
 from typing import Iterable, Iterator
 
-from helpers import first_where, nacs, rev_enumerate, scan
+from bijector.helpers import first_where, nacs, rev_enumerate, scan
 
 # == Endliche Paarungsfunktionen ==
 def ff_to_f(x: int, y: int, *, xmax: int, ymax: int) -> int:
