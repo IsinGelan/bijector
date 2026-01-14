@@ -73,6 +73,14 @@ class Q(BijType):
     def from_int(cls, num: int) -> Self:
         return Q(a=num, b=1)
     
+    @classmethod
+    def from_any(cls, num: Self | int) -> Self:
+        if isinstance(num, int):
+            return cls(a=num, b=1)
+        if isinstance(num, cls):
+            return num
+        raise ValueError(f"Cannot construct Q from type {num.__class__!r}!")
+    
     def __int__(self) -> int:
         return self.a // self.b
     def __float__(self) -> float:
@@ -127,27 +135,47 @@ class Q(BijType):
     def __neg__(self) -> Self:
         return Q(-self.a, self.b)
 
-    def __add__(self, other: Self) -> Self:
-        divisor = self.b * other.b
-        return Q.reduced(self.a * other.b + other.a * self.b, divisor)
+    def __add__(self, other: Self | int) -> Self:
+        o = Q.from_any(other)
+        divisor = self.b * o.b
+        return Q.reduced(self.a * o.b + o.a * self.b, divisor)
+    def __radd__(self, other: Self | int) -> Self:
+        return self + other
         
     def __sub__(self, other: Self) -> Self:
         return self + (- other)
+    def __rsub__(self, other: Self | int) -> Self:
+        return self + (- other)
     
     def __mul__(self, other: Self) -> Self:
-        return Q.reduced(self.a * other.a, self.b * other.b)
+        o = Q.from_any(other)
+        return Q.reduced(self.a * o.a, self.b * o.b)
+    def __rmul__(self, other: Self | int) -> Self:
+        return self * other
 
-    def __div__(self, other: Self) -> Self:
-        return Q.reduced(self.a * other.b, self.b * other.a)
+    def __itruediv__(self, other: Self) -> Self:
+        o = Q.from_any(other)
+        return Q.reduced(self.a * o.b, self.b * o.a)
+    def __rtruediv__(self, other: Self | int) -> Self:
+        o = Q.from_any(other)
+        return Q.reduced(o.a * self.b, o.b * self.a)
+    
+    def __ifloordiv__(self, other: Self) -> Self:
+        raise NotImplementedError()
     
     def __mod__(self, other: Self | int) -> Self:
-        o = Q(a=other, b=1) if isinstance(other, int) else other
+        o = Q.from_any(other)
         divisor = self.b * o.b
         rest = (self.a * o.b) % (o.a * self.b)
         return Q.reduced(rest, divisor)
+    def __rmod__(self, other: Self | int) -> Self:
+        o = Q.from_any(other)
+        divisor = self.b * o.b
+        rest = (o.a * self.b) % (self.a * o.b)
+        return Q.reduced(rest, divisor)
     
     def __divmod__(self, other: Self | int) -> tuple[Self, Self]:
-        o = Q(a=other, b=1) if isinstance(other, int) else other
+        o = Q.from_any(other)
         divisor = self.b * o.b
         num, rest = divmod(self.a * o.b, o.a * self.b)
         return Q.from_int(num), Q.reduced(rest, divisor)
