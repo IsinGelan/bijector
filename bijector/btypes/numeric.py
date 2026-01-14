@@ -1,10 +1,30 @@
 
+from enum import Enum
 from typing import ClassVar
 from bij_type import INFINITE_SIZE, BijType
-from decorators import derive, generate_bijection
+from decorators import derive, generate_bijection, register_primitive_adapter
 from pairing_bijections import i_to_ii, i_to_ilist, ii_to_i, ilist_to_i
 
 
+# ================================
+@generate_bijection
+class Boolean(Enum):
+    FALSE = 0
+    TRUE  = 1
+
+    def to_bool(self):
+        return self == Boolean.TRUE
+    
+    @staticmethod
+    def from_bool(b: bool):
+        return Boolean.TRUE if b else Boolean.FALSE
+
+# b_to_bij = lambda b: Boolean.TRUE if b else Boolean.FALSE
+# bij_to_b = lambda bij: bij == Boolean.TRUE
+
+
+
+# ================================
 class N0(BijType):
     size: ClassVar[int] = INFINITE_SIZE
     n: int
@@ -49,3 +69,16 @@ class IntList(BijType):
         el_code = ilist_to_i(self.elements)
         # TODO: give more priority to el_code
         return ii_to_i(length, el_code)
+    
+
+# Adding the adapters
+# ================================
+register_primitive_adapter(
+    int,
+    derive(int, Z, to_aux=lambda i: Z(z=i), from_aux=lambda z: z.z)
+)
+
+register_primitive_adapter(
+    bool,
+    derive(bool, Boolean, to_aux=Boolean.from_bool, from_aux=Boolean.to_bool)
+)

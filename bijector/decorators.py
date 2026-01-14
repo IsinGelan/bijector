@@ -2,7 +2,6 @@
 from enum import Enum
 from math import prod
 from typing import Callable, ClassVar, Self
-import inspect
 
 from pydantic import BaseModel
 
@@ -17,10 +16,16 @@ from pairing_bijections import (
     i_to_ilist
     )
 
-# ================================
-PRIMITIVE_ADAPTERS: dict[type, type[BijType]] = {}
-SUPPORTED_BASE_CLASSES = {BijType, Enum}
 
+# ================================
+SUPPORTED_BASE_CLASSES = {BijType, Enum}
+PRIMITIVE_ADAPTERS: dict[type, type[BijType]] = {}
+
+def register_primitive_adapter(for_type: type, adapter):
+    PRIMITIVE_ADAPTERS[for_type] = adapter
+
+
+# ================================
 def is_bijectable_type(cls: type) -> bool:
     """whether the type itself is bijectable"""
     if issubclass(cls, BijType):
@@ -291,36 +296,3 @@ def generate_bijection(
 
     return wrapper(cls)
 
-
-
-# ================================
-# Configuring the adapters
-class N0(BijType):
-    size: ClassVar[int] = INFINITE_SIZE
-    n: int
-    @classmethod
-    def decode(cls, code):
-        return cls(n=code)
-    def encode(self):
-        return self.n
-
-z_to_n0 = lambda z: N0(n=2*abs(z.z) + (z.z < 0))
-z_from_n0 = lambda n0: Z(z=(-1 if (neg := n0.n % 2) else 1) * (n0.n - neg) // 2)
-
-@derive(N0, to_aux=z_to_n0, from_aux=z_from_n0)
-class Z(BijType):
-    z: int
-
-@generate_bijection
-class Boolean(Enum):
-    FALSE = 0
-    TRUE  = 1
-
-b_to_bij = lambda b: Boolean.TRUE if b else Boolean.FALSE
-bij_to_b = lambda bij: bij == Boolean.TRUE
-
-
-PRIMITIVE_ADAPTERS = {
-    int: derive(int, Z, to_aux=lambda i: Z(z=i), from_aux=lambda z: z.z),
-    bool: derive(bool, Boolean, to_aux=b_to_bij, from_aux=bij_to_b)
-}

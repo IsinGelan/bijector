@@ -32,6 +32,7 @@ def assert_isinstance_exact(cls: UnionType, instance):
     raise TypeError(f"Instance for `union(...).encode` has to "
                     f"be instance of any of {cls._types} (not subclass)!")
 
+
 def union(*types: BijType) -> type[BijType]:
     """Union of types: Encode any object of the given types.\n
     Two Union types are the same if the set of their types is the same.\n
