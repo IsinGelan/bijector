@@ -2,8 +2,8 @@
 from math import gcd
 from typing import ClassVar, Iterator, Self
 
-from decorators import INFINITE_SIZE, BijType
-from pairing_bijections import fi_to_i, i_to_fi
+from bijector.decorators import INFINITE_SIZE, BijType
+from bijector.pairing_bijections import fi_to_i, i_to_fi
 
 Q = tuple[int, int]
 
